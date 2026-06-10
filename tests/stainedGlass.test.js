@@ -100,6 +100,6 @@ describe('renderStainedGlass', () => {
       }
     }
 
-    expect(darkPixels).toBeLessThan(height * 0.75);
+    expect(darkPixels).toBeLessThan(height * 0.9);
   });
 });

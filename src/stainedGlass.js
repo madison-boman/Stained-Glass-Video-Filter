@@ -29,12 +29,14 @@ function createSeeds(cols, rows, cellSize, width, height) {
   const variants = new Float32Array(count);
 
   for (let row = 0; row < rows; row += 1) {
+    const rowDrift = (randomUnit(0, row, 4) - 0.5) * cellSize * 0.55;
+
     for (let col = 0; col < cols; col += 1) {
       const index = row * cols + col;
-      const jitterX = (randomUnit(col, row, 1) - 0.5) * cellSize * 0.7;
-      const jitterY = (randomUnit(col, row, 2) - 0.5) * cellSize * 0.7;
+      const jitterX = (randomUnit(col, row, 1) - 0.5) * cellSize * 0.95;
+      const jitterY = (randomUnit(col, row, 2) - 0.5) * cellSize * 0.95;
 
-      xs[index] = clamp((col + 0.5) * cellSize + jitterX, 0, width - 1);
+      xs[index] = clamp((col + 0.5) * cellSize + rowDrift + jitterX, 0, width - 1);
       ys[index] = clamp((row + 0.5) * cellSize + jitterY, 0, height - 1);
       variants[index] = randomUnit(col, row, 3);
     }
@@ -44,10 +46,17 @@ function createSeeds(cols, rows, cellSize, width, height) {
 }
 
 function writeNearestSeeds(x, y, seeds, cols, rows, cellSize, result) {
-  const startCol = Math.max(Math.floor(x / cellSize) - 2, 0);
-  const endCol = Math.min(Math.floor(x / cellSize) + 2, cols - 1);
-  const startRow = Math.max(Math.floor(y / cellSize) - 2, 0);
-  const endRow = Math.min(Math.floor(y / cellSize) + 2, rows - 1);
+  const warpedX =
+    x +
+    Math.sin(y * 0.055) * cellSize * 0.42 +
+    Math.sin(y * 0.021 + 1.7) * cellSize * 0.28;
+  const warpedY = y + Math.sin(x * 0.049 + 0.8) * cellSize * 0.34;
+  const gridCol = clamp(Math.floor(warpedX / cellSize), 0, cols - 1);
+  const gridRow = clamp(Math.floor(warpedY / cellSize), 0, rows - 1);
+  const startCol = Math.max(gridCol - 3, 0);
+  const endCol = Math.min(gridCol + 3, cols - 1);
+  const startRow = Math.max(gridRow - 3, 0);
+  const endRow = Math.min(gridRow + 3, rows - 1);
 
   let bestIndex = 0;
   let bestDistance = Infinity;
@@ -56,8 +65,8 @@ function writeNearestSeeds(x, y, seeds, cols, rows, cellSize, result) {
   for (let row = startRow; row <= endRow; row += 1) {
     for (let col = startCol; col <= endCol; col += 1) {
       const index = row * cols + col;
-      const dx = x - seeds.xs[index];
-      const dy = y - seeds.ys[index];
+      const dx = warpedX - seeds.xs[index];
+      const dy = warpedY - seeds.ys[index];
       const distance = dx * dx + dy * dy;
 
       if (distance < bestDistance) {
@@ -140,8 +149,8 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     cellColors[base + 2] = shaped[2];
   }
 
-  const leadWidth = 1.4 + leadStrength * 3.4;
-  const leadFeather = 1.1 + leadStrength * 1.4;
+  const leadWidth = 0.9 + leadStrength * 2.45;
+  const leadFeather = 0.9 + leadStrength * 0.9;
   const detailBlend = 0.12 + (1 - leadStrength) * 0.08;
 
   for (let y = 0; y < height; y += 1) {
