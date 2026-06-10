@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digital Stained Glass</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Digital Stained Glass</h1>
+      <p>See the world like a stained glass window.</p>
+    </header>
+
+    <main>
+      <div class="stage">
+        <video id="camera" autoplay playsinline muted hidden></video>
+        <canvas id="demo-source" hidden></canvas>
+        <canvas id="output" aria-label="Stained glass preview"></canvas>
+      </div>
+
+      <aside class="controls">
+        <label>
+          Cell size
+          <input id="cell-size" type="range" min="8" max="40" value="18" />
+        </label>
+        <label>
+          Color levels
+          <input id="color-levels" type="range" min="4" max="16" value="8" />
+        </label>
+        <label>
+          Lead line strength
+          <input id="lead-strength" type="range" min="0" max="100" value="70" />
+        </label>
+        <div class="actions">
+          <button id="start-btn" type="button">Start camera</button>
+          <button id="snapshot-btn" type="button" disabled>Save snapshot</button>
+        </div>
+        <p id="status" class="status">Click “Start camera” or use demo mode if no camera is available.</p>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
