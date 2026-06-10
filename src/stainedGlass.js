@@ -122,13 +122,26 @@ function writeNearestSeeds(
   width,
   height,
   colorWeight,
+  warpStrength,
   result,
 ) {
+  const sourceIndex = (y * width + x) * 4;
+  const r = sourceData[sourceIndex];
+  const g = sourceData[sourceIndex + 1];
+  const b = sourceData[sourceIndex + 2];
+  const brightness = luminance(r, g, b);
+  const sourcePhase = r * 0.035 + g * 0.057 + b * 0.071 + brightness * 0.023;
   const warpedX =
     x +
     Math.sin(y * 0.055) * cellSize * 0.42 +
-    Math.sin(y * 0.021 + 1.7) * cellSize * 0.28;
-  const warpedY = y + Math.sin(x * 0.049 + 0.8) * cellSize * 0.34;
+    Math.sin(y * 0.021 + 1.7) * cellSize * 0.28 +
+    Math.sin(sourcePhase) * warpStrength +
+    Math.sin((r - g) * 0.05 + y * 0.018) * warpStrength * 0.45;
+  const warpedY =
+    y +
+    Math.sin(x * 0.049 + 0.8) * cellSize * 0.34 +
+    Math.cos(sourcePhase) * warpStrength +
+    Math.cos((b - g) * 0.05 + x * 0.018) * warpStrength * 0.45;
   const gridCol = clamp(Math.floor(warpedX / cellSize), 0, cols - 1);
   const gridRow = clamp(Math.floor(warpedY / cellSize), 0, rows - 1);
   const startCol = Math.max(gridCol - 3, 0);
@@ -140,10 +153,6 @@ function writeNearestSeeds(
   let secondIndex = 0;
   let bestDistance = Infinity;
   let secondDistance = Infinity;
-  const sourceIndex = (y * width + x) * 4;
-  const r = sourceData[sourceIndex];
-  const g = sourceData[sourceIndex + 1];
-  const b = sourceData[sourceIndex + 2];
 
   for (let row = startRow; row <= endRow; row += 1) {
     for (let col = startCol; col <= endCol; col += 1) {
@@ -209,10 +218,24 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     secondDistance: Infinity,
   };
   const colorWeight = 0.9 + detail * 2.15;
+  const warpStrength = cellSize * (0.45 + detail * 1.05);
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      writeNearestSeeds(x, y, seeds, cols, rows, cellSize, source.data, width, height, colorWeight, nearest);
+      writeNearestSeeds(
+        x,
+        y,
+        seeds,
+        cols,
+        rows,
+        cellSize,
+        source.data,
+        width,
+        height,
+        colorWeight,
+        warpStrength,
+        nearest,
+      );
 
       const sourceIndex = (y * width + x) * 4;
       const seedIndex = nearest.bestIndex;
@@ -248,7 +271,20 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      writeNearestSeeds(x, y, seeds, cols, rows, cellSize, source.data, width, height, colorWeight, nearest);
+      writeNearestSeeds(
+        x,
+        y,
+        seeds,
+        cols,
+        rows,
+        cellSize,
+        source.data,
+        width,
+        height,
+        colorWeight,
+        warpStrength,
+        nearest,
+      );
 
       const seedIndex = nearest.bestIndex;
       const base = seedIndex * 3;
