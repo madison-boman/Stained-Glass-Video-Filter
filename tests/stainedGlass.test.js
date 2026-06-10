@@ -18,9 +18,7 @@ describe('luminance', () => {
 });
 
 describe('renderStainedGlass', () => {
-  it('produces opaque output pixels', () => {
-    const width = 36;
-    const height = 36;
+  function createContexts(width, height) {
     const sourceCanvas = document.createElement('canvas');
     const outputCanvas = document.createElement('canvas');
     sourceCanvas.width = width;
@@ -30,6 +28,14 @@ describe('renderStainedGlass', () => {
 
     const sourceCtx = sourceCanvas.getContext('2d');
     const outputCtx = outputCanvas.getContext('2d');
+
+    return { sourceCtx, outputCtx };
+  }
+
+  it('produces opaque output pixels', () => {
+    const width = 36;
+    const height = 36;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
 
     sourceCtx.fillStyle = '#ff6600';
     sourceCtx.fillRect(0, 0, width, height);
@@ -45,5 +51,55 @@ describe('renderStainedGlass', () => {
     const pixels = outputCtx.getImageData(0, 0, width, height).data;
     expect(pixels[3]).toBe(255);
     expect(pixels[width * 4 + 3]).toBe(255);
+  });
+
+  it('adds glass-like tonal variation inside panes', () => {
+    const width = 48;
+    const height = 48;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#dd6600';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      cellSize: 16,
+      colorLevels: 8,
+      leadStrength: 0.8,
+    });
+
+    const pixels = outputCtx.getImageData(8, 8, 16, 16).data;
+    const colors = new Set();
+
+    for (let i = 0; i < pixels.length; i += 4) {
+      colors.add(`${pixels[i]},${pixels[i + 1]},${pixels[i + 2]}`);
+    }
+
+    expect(colors.size).toBeGreaterThan(8);
+  });
+
+  it('avoids full-height square grid seams', () => {
+    const width = 64;
+    const height = 64;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#dd6600';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      cellSize: 16,
+      colorLevels: 8,
+      leadStrength: 0.8,
+    });
+
+    const pixels = outputCtx.getImageData(16, 0, 1, height).data;
+    let darkPixels = 0;
+
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (luminance(pixels[i], pixels[i + 1], pixels[i + 2]) < 80) {
+        darkPixels += 1;
+      }
+    }
+
+    expect(darkPixels).toBeLessThan(height * 0.75);
   });
 });
