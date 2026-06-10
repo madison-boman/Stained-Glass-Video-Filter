@@ -171,9 +171,9 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     cellColors[base + 2] = shaped[2];
   }
 
-  const leadWidth = 0.9 + leadStrength * 2.45;
-  const leadFeather = 0.9 + leadStrength * 0.9;
-  const detailBlend = 0.08 + detail * 0.18;
+  const leadWidth = 1.15 + leadStrength * 2.8;
+  const leadFeather = 0.65 + leadStrength * 0.65;
+  const detailBlend = 0.05 + detail * 0.1;
   const seamThreshold = 18 + (1 - detail) * 72;
   const edgeThreshold = 22 + (1 - detail) * 82;
 
@@ -211,12 +211,17 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       );
       const seamDetail = clamp((seamContrast - seamThreshold) / (160 - seamThreshold), 0, 1);
       const edgeDetail = clamp((sourceEdgeContrast(source.data, width, height, x, y) - edgeThreshold) / (180 - edgeThreshold), 0, 1);
-      const leadAlpha = Math.max(seamAlpha * seamDetail, frameAlpha, edgeDetail * leadStrength);
+      const leadBaseline = 0.74 + leadStrength * 0.2;
+      const leadAlpha = Math.max(
+        clamp(seamAlpha * (leadBaseline + seamDetail * 0.18), 0, 1),
+        frameAlpha,
+        edgeDetail * leadStrength,
+      );
 
       if (leadAlpha > 0) {
-        const leadR = 10 + r * 0.05;
-        const leadG = 12 + g * 0.05;
-        const leadB = 17 + b * 0.06;
+        const leadR = 4 + r * 0.025;
+        const leadG = 5 + g * 0.025;
+        const leadB = 7 + b * 0.03;
 
         r = r * (1 - leadAlpha) + leadR * leadAlpha;
         g = g * (1 - leadAlpha) + leadG * leadAlpha;

@@ -45,6 +45,23 @@ describe('renderStainedGlass', () => {
     return total / count;
   }
 
+  function countDarkInteriorPixels(outputCtx, width, height, threshold = 70) {
+    const pixels = outputCtx.getImageData(0, 0, width, height).data;
+    let darkPixels = 0;
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+
+        if (luminance(pixels[index], pixels[index + 1], pixels[index + 2]) < threshold) {
+          darkPixels += 1;
+        }
+      }
+    }
+
+    return darkPixels;
+  }
+
   it('produces opaque output pixels', () => {
     const width = 36;
     const height = 36;
@@ -114,6 +131,23 @@ describe('renderStainedGlass', () => {
     }
 
     expect(darkPixels).toBeLessThan(height * 0.9);
+  });
+
+  it('draws crisp lead between shards even when source colors are similar', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#d88a22';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 0.8,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
   });
 
   it('places stronger lead where the source has stark color differences', () => {
