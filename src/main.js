@@ -6,7 +6,7 @@ const output = document.getElementById('output');
 const startBtn = document.getElementById('start-btn');
 const snapshotBtn = document.getElementById('snapshot-btn');
 const statusEl = document.getElementById('status');
-const cellSizeInput = document.getElementById('cell-size');
+const detailInput = document.getElementById('detail-level');
 const colorLevelsInput = document.getElementById('color-levels');
 const leadStrengthInput = document.getElementById('lead-strength');
 
@@ -20,7 +20,7 @@ let demoPhase = 0;
 
 function getOptions() {
   return {
-    cellSize: Number(cellSizeInput.value),
+    detail: Number(detailInput.value) / 100,
     colorLevels: Number(colorLevelsInput.value),
     leadStrength: Number(leadStrengthInput.value) / 100,
   };

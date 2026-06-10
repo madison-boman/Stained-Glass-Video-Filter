@@ -17,6 +17,22 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function colorDifference(r1, g1, b1, r2, g2, b2) {
+  return (Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)) / 3;
+}
+
+function sourceEdgeContrast(data, width, height, x, y) {
+  const left = (y * width + Math.max(x - 1, 0)) * 4;
+  const right = (y * width + Math.min(x + 1, width - 1)) * 4;
+  const top = (Math.max(y - 1, 0) * width + x) * 4;
+  const bottom = (Math.min(y + 1, height - 1) * width + x) * 4;
+
+  return Math.max(
+    colorDifference(data[left], data[left + 1], data[left + 2], data[right], data[right + 1], data[right + 2]),
+    colorDifference(data[top], data[top + 1], data[top + 2], data[bottom], data[bottom + 1], data[bottom + 2]),
+  );
+}
+
 function randomUnit(col, row, salt) {
   const value = Math.sin(col * 127.1 + row * 311.7 + salt * 74.7) * 43758.5453;
   return value - Math.floor(value);
@@ -59,6 +75,7 @@ function writeNearestSeeds(x, y, seeds, cols, rows, cellSize, result) {
   const endRow = Math.min(gridRow + 3, rows - 1);
 
   let bestIndex = 0;
+  let secondIndex = 0;
   let bestDistance = Infinity;
   let secondDistance = Infinity;
 
@@ -70,16 +87,19 @@ function writeNearestSeeds(x, y, seeds, cols, rows, cellSize, result) {
       const distance = dx * dx + dy * dy;
 
       if (distance < bestDistance) {
+        secondIndex = bestIndex;
         secondDistance = bestDistance;
         bestDistance = distance;
         bestIndex = index;
       } else if (distance < secondDistance) {
         secondDistance = distance;
+        secondIndex = index;
       }
     }
   }
 
   result.bestIndex = bestIndex;
+  result.secondIndex = secondIndex;
   result.bestDistance = bestDistance;
   result.secondDistance = secondDistance;
 }
@@ -97,7 +117,8 @@ function shapeGlassColor(r, g, b) {
  * Apply a stained-glass effect: organic pane tessellation plus dark lead seams.
  */
 export function renderStainedGlass(sourceCtx, outputCtx, width, height, options = {}) {
-  const cellSize = options.cellSize ?? 24;
+  const detail = clamp(options.detail ?? 0.65, 0, 1);
+  const cellSize = options.cellSize ?? Math.round(52 - detail * 38);
   const colorLevels = options.colorLevels ?? 12;
   const leadStrength = options.leadStrength ?? 0.82;
 
@@ -115,6 +136,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
   const cellColors = new Uint8ClampedArray(cols * rows * 3);
   const nearest = {
     bestIndex: 0,
+    secondIndex: 0,
     bestDistance: 0,
     secondDistance: Infinity,
   };
@@ -151,7 +173,9 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
 
   const leadWidth = 0.9 + leadStrength * 2.45;
   const leadFeather = 0.9 + leadStrength * 0.9;
-  const detailBlend = 0.12 + (1 - leadStrength) * 0.08;
+  const detailBlend = 0.08 + detail * 0.18;
+  const seamThreshold = 18 + (1 - detail) * 72;
+  const edgeThreshold = 22 + (1 - detail) * 82;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -176,7 +200,18 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       const edgeDistance = Math.min(x, y, width - 1 - x, height - 1 - y);
       const seamAlpha = 1 - clamp((boundaryDistance - leadWidth) / leadFeather, 0, 1);
       const frameAlpha = 1 - clamp((edgeDistance - leadWidth) / leadFeather, 0, 1);
-      const leadAlpha = Math.max(seamAlpha, frameAlpha);
+      const secondBase = nearest.secondIndex * 3;
+      const seamContrast = colorDifference(
+        cellColors[base],
+        cellColors[base + 1],
+        cellColors[base + 2],
+        cellColors[secondBase],
+        cellColors[secondBase + 1],
+        cellColors[secondBase + 2],
+      );
+      const seamDetail = clamp((seamContrast - seamThreshold) / (160 - seamThreshold), 0, 1);
+      const edgeDetail = clamp((sourceEdgeContrast(source.data, width, height, x, y) - edgeThreshold) / (180 - edgeThreshold), 0, 1);
+      const leadAlpha = Math.max(seamAlpha * seamDetail, frameAlpha, edgeDetail * leadStrength);
 
       if (leadAlpha > 0) {
         const leadR = 10 + r * 0.05;
