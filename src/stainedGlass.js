@@ -53,7 +53,7 @@ function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
   const gs = new Uint8ClampedArray(count);
   const bs = new Uint8ClampedArray(count);
   const variants = new Float32Array(count);
-  const colorDrift = cellSize * (0.2 + detail * 0.38);
+  const colorDrift = cellSize * (0.5 + detail * 0.72);
 
   for (let row = 0; row < rows; row += 1) {
     const rowDrift = (randomUnit(0, row, 4) - 0.5) * cellSize * 0.55;
@@ -62,6 +62,7 @@ function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
       const index = row * cols + col;
       const jitterX = (randomUnit(col, row, 1) - 0.5) * cellSize * 0.95;
       const jitterY = (randomUnit(col, row, 2) - 0.5) * cellSize * 0.95;
+      const variant = randomUnit(col, row, 3);
       const baseX = (col + 0.5) * cellSize + rowDrift + jitterX;
       const baseY = (row + 0.5) * cellSize + jitterY;
       const sampleIndex = sourceIndexAt(width, height, baseX, baseY);
@@ -69,7 +70,10 @@ function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
       const g = sourceData[sampleIndex + 1];
       const b = sourceData[sampleIndex + 2];
       const brightness = luminance(r, g, b);
-      const colorPhase = r * 0.019 + g * 0.031 + b * 0.043 + brightness * 0.017;
+      const colorPhase =
+        (r * 0.019 + g * 0.031 + b * 0.043 + brightness * 0.017) * (0.55 + variant * 0.7) +
+        variant * Math.PI * 2;
+      const chromaPhase = (r - b) * 0.037 + (g - brightness) * 0.029 + variant * Math.PI * 4;
       const left = sourceIndexAt(width, height, baseX - cellSize * 0.45, baseY);
       const right = sourceIndexAt(width, height, baseX + cellSize * 0.45, baseY);
       const top = sourceIndexAt(width, height, baseX, baseY - cellSize * 0.45);
@@ -82,19 +86,25 @@ function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
         luminance(sourceData[top], sourceData[top + 1], sourceData[top + 2]);
 
       xs[index] = clamp(
-        baseX + Math.sin(colorPhase) * colorDrift + gradientX * detail * 0.045,
+        baseX +
+          Math.sin(colorPhase) * colorDrift +
+          Math.sin(chromaPhase) * cellSize * detail * 0.28 +
+          gradientX * detail * 0.09,
         0,
         width - 1,
       );
       ys[index] = clamp(
-        baseY + Math.cos(colorPhase) * colorDrift + gradientY * detail * 0.045,
+        baseY +
+          Math.cos(colorPhase) * colorDrift +
+          Math.cos(chromaPhase) * cellSize * detail * 0.28 +
+          gradientY * detail * 0.09,
         0,
         height - 1,
       );
       rs[index] = r;
       gs[index] = g;
       bs[index] = b;
-      variants[index] = randomUnit(col, row, 3);
+      variants[index] = variant;
     }
   }
 
@@ -198,7 +208,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     bestDistance: 0,
     secondDistance: Infinity,
   };
-  const colorWeight = 0.45 + detail * 1.35;
+  const colorWeight = 0.9 + detail * 2.15;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
