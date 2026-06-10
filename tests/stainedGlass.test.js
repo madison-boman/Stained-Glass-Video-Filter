@@ -62,6 +62,26 @@ describe('renderStainedGlass', () => {
     return darkPixels;
   }
 
+  function countDarkMaskDifferences(firstCtx, secondCtx, width, height, threshold = 70) {
+    const first = firstCtx.getImageData(0, 0, width, height).data;
+    const second = secondCtx.getImageData(0, 0, width, height).data;
+    let differences = 0;
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+        const firstIsLead = luminance(first[index], first[index + 1], first[index + 2]) < threshold;
+        const secondIsLead = luminance(second[index], second[index + 1], second[index + 2]) < threshold;
+
+        if (firstIsLead !== secondIsLead) {
+          differences += 1;
+        }
+      }
+    }
+
+    return differences;
+  }
+
   it('produces opaque output pixels', () => {
     const width = 36;
     const height = 36;
@@ -148,6 +168,28 @@ describe('renderStainedGlass', () => {
     });
 
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
+  });
+
+  it('regenerates shard geometry when the frame colors change', () => {
+    const width = 80;
+    const height = 80;
+    const firstFrame = createContexts(width, height);
+    const secondFrame = createContexts(width, height);
+    const options = {
+      detail: 0.85,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    };
+
+    firstFrame.sourceCtx.fillStyle = '#d86e16';
+    firstFrame.sourceCtx.fillRect(0, 0, width, height);
+    secondFrame.sourceCtx.fillStyle = '#165ed8';
+    secondFrame.sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(firstFrame.sourceCtx, firstFrame.outputCtx, width, height, options);
+    renderStainedGlass(secondFrame.sourceCtx, secondFrame.outputCtx, width, height, options);
+
+    expect(countDarkMaskDifferences(firstFrame.outputCtx, secondFrame.outputCtx, width, height)).toBeGreaterThan(250);
   });
 
   it('places stronger lead where the source has stark color differences', () => {

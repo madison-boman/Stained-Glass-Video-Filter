@@ -33,16 +33,27 @@ function sourceEdgeContrast(data, width, height, x, y) {
   );
 }
 
+function sourceIndexAt(width, height, x, y) {
+  const sampleX = clamp(Math.round(x), 0, width - 1);
+  const sampleY = clamp(Math.round(y), 0, height - 1);
+
+  return (sampleY * width + sampleX) * 4;
+}
+
 function randomUnit(col, row, salt) {
   const value = Math.sin(col * 127.1 + row * 311.7 + salt * 74.7) * 43758.5453;
   return value - Math.floor(value);
 }
 
-function createSeeds(cols, rows, cellSize, width, height) {
+function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
   const count = cols * rows;
   const xs = new Float32Array(count);
   const ys = new Float32Array(count);
+  const rs = new Uint8ClampedArray(count);
+  const gs = new Uint8ClampedArray(count);
+  const bs = new Uint8ClampedArray(count);
   const variants = new Float32Array(count);
+  const colorDrift = cellSize * (0.2 + detail * 0.38);
 
   for (let row = 0; row < rows; row += 1) {
     const rowDrift = (randomUnit(0, row, 4) - 0.5) * cellSize * 0.55;
@@ -51,17 +62,58 @@ function createSeeds(cols, rows, cellSize, width, height) {
       const index = row * cols + col;
       const jitterX = (randomUnit(col, row, 1) - 0.5) * cellSize * 0.95;
       const jitterY = (randomUnit(col, row, 2) - 0.5) * cellSize * 0.95;
+      const baseX = (col + 0.5) * cellSize + rowDrift + jitterX;
+      const baseY = (row + 0.5) * cellSize + jitterY;
+      const sampleIndex = sourceIndexAt(width, height, baseX, baseY);
+      const r = sourceData[sampleIndex];
+      const g = sourceData[sampleIndex + 1];
+      const b = sourceData[sampleIndex + 2];
+      const brightness = luminance(r, g, b);
+      const colorPhase = r * 0.019 + g * 0.031 + b * 0.043 + brightness * 0.017;
+      const left = sourceIndexAt(width, height, baseX - cellSize * 0.45, baseY);
+      const right = sourceIndexAt(width, height, baseX + cellSize * 0.45, baseY);
+      const top = sourceIndexAt(width, height, baseX, baseY - cellSize * 0.45);
+      const bottom = sourceIndexAt(width, height, baseX, baseY + cellSize * 0.45);
+      const gradientX =
+        luminance(sourceData[right], sourceData[right + 1], sourceData[right + 2]) -
+        luminance(sourceData[left], sourceData[left + 1], sourceData[left + 2]);
+      const gradientY =
+        luminance(sourceData[bottom], sourceData[bottom + 1], sourceData[bottom + 2]) -
+        luminance(sourceData[top], sourceData[top + 1], sourceData[top + 2]);
 
-      xs[index] = clamp((col + 0.5) * cellSize + rowDrift + jitterX, 0, width - 1);
-      ys[index] = clamp((row + 0.5) * cellSize + jitterY, 0, height - 1);
+      xs[index] = clamp(
+        baseX + Math.sin(colorPhase) * colorDrift + gradientX * detail * 0.045,
+        0,
+        width - 1,
+      );
+      ys[index] = clamp(
+        baseY + Math.cos(colorPhase) * colorDrift + gradientY * detail * 0.045,
+        0,
+        height - 1,
+      );
+      rs[index] = r;
+      gs[index] = g;
+      bs[index] = b;
       variants[index] = randomUnit(col, row, 3);
     }
   }
 
-  return { xs, ys, variants };
+  return { xs, ys, rs, gs, bs, variants };
 }
 
-function writeNearestSeeds(x, y, seeds, cols, rows, cellSize, result) {
+function writeNearestSeeds(
+  x,
+  y,
+  seeds,
+  cols,
+  rows,
+  cellSize,
+  sourceData,
+  width,
+  height,
+  colorWeight,
+  result,
+) {
   const warpedX =
     x +
     Math.sin(y * 0.055) * cellSize * 0.42 +
@@ -78,13 +130,19 @@ function writeNearestSeeds(x, y, seeds, cols, rows, cellSize, result) {
   let secondIndex = 0;
   let bestDistance = Infinity;
   let secondDistance = Infinity;
+  const sourceIndex = (y * width + x) * 4;
+  const r = sourceData[sourceIndex];
+  const g = sourceData[sourceIndex + 1];
+  const b = sourceData[sourceIndex + 2];
 
   for (let row = startRow; row <= endRow; row += 1) {
     for (let col = startCol; col <= endCol; col += 1) {
       const index = row * cols + col;
       const dx = warpedX - seeds.xs[index];
       const dy = warpedY - seeds.ys[index];
-      const distance = dx * dx + dy * dy;
+      const spatialDistance = dx * dx + dy * dy;
+      const colorCost = colorDifference(r, g, b, seeds.rs[index], seeds.gs[index], seeds.bs[index]);
+      const distance = spatialDistance + colorCost * cellSize * colorWeight;
 
       if (distance < bestDistance) {
         secondIndex = bestIndex;
@@ -127,7 +185,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
 
   const cols = Math.ceil(width / cellSize);
   const rows = Math.ceil(height / cellSize);
-  const seeds = createSeeds(cols, rows, cellSize, width, height);
+  const seeds = createSeeds(cols, rows, cellSize, width, height, source.data, detail);
   const seedCount = cols * rows;
   const sumR = new Float64Array(seedCount);
   const sumG = new Float64Array(seedCount);
@@ -140,10 +198,11 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     bestDistance: 0,
     secondDistance: Infinity,
   };
+  const colorWeight = 0.45 + detail * 1.35;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      writeNearestSeeds(x, y, seeds, cols, rows, cellSize, nearest);
+      writeNearestSeeds(x, y, seeds, cols, rows, cellSize, source.data, width, height, colorWeight, nearest);
 
       const sourceIndex = (y * width + x) * 4;
       const seedIndex = nearest.bestIndex;
@@ -179,7 +238,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      writeNearestSeeds(x, y, seeds, cols, rows, cellSize, nearest);
+      writeNearestSeeds(x, y, seeds, cols, rows, cellSize, source.data, width, height, colorWeight, nearest);
 
       const seedIndex = nearest.bestIndex;
       const base = seedIndex * 3;
