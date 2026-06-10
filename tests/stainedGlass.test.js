@@ -18,9 +18,7 @@ describe('luminance', () => {
 });
 
 describe('renderStainedGlass', () => {
-  it('produces opaque output pixels', () => {
-    const width = 36;
-    const height = 36;
+  function createContexts(width, height) {
     const sourceCanvas = document.createElement('canvas');
     const outputCanvas = document.createElement('canvas');
     sourceCanvas.width = width;
@@ -30,6 +28,64 @@ describe('renderStainedGlass', () => {
 
     const sourceCtx = sourceCanvas.getContext('2d');
     const outputCtx = outputCanvas.getContext('2d');
+
+    return { sourceCtx, outputCtx };
+  }
+
+  function averageColumnLuminance(outputCtx, x, height, band = 3) {
+    const pixels = outputCtx.getImageData(x, 0, band, height).data;
+    let total = 0;
+    let count = 0;
+
+    for (let i = 0; i < pixels.length; i += 4) {
+      total += luminance(pixels[i], pixels[i + 1], pixels[i + 2]);
+      count += 1;
+    }
+
+    return total / count;
+  }
+
+  function countDarkInteriorPixels(outputCtx, width, height, threshold = 70) {
+    const pixels = outputCtx.getImageData(0, 0, width, height).data;
+    let darkPixels = 0;
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+
+        if (luminance(pixels[index], pixels[index + 1], pixels[index + 2]) < threshold) {
+          darkPixels += 1;
+        }
+      }
+    }
+
+    return darkPixels;
+  }
+
+  function countDarkMaskDifferences(firstCtx, secondCtx, width, height, threshold = 70) {
+    const first = firstCtx.getImageData(0, 0, width, height).data;
+    const second = secondCtx.getImageData(0, 0, width, height).data;
+    let differences = 0;
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+        const firstIsLead = luminance(first[index], first[index + 1], first[index + 2]) < threshold;
+        const secondIsLead = luminance(second[index], second[index + 1], second[index + 2]) < threshold;
+
+        if (firstIsLead !== secondIsLead) {
+          differences += 1;
+        }
+      }
+    }
+
+    return differences;
+  }
+
+  it('produces opaque output pixels', () => {
+    const width = 36;
+    const height = 36;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
 
     sourceCtx.fillStyle = '#ff6600';
     sourceCtx.fillRect(0, 0, width, height);
@@ -45,5 +101,152 @@ describe('renderStainedGlass', () => {
     const pixels = outputCtx.getImageData(0, 0, width, height).data;
     expect(pixels[3]).toBe(255);
     expect(pixels[width * 4 + 3]).toBe(255);
+  });
+
+  it('adds glass-like tonal variation inside panes', () => {
+    const width = 48;
+    const height = 48;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#dd6600';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      cellSize: 16,
+      colorLevels: 8,
+      leadStrength: 0.8,
+    });
+
+    const pixels = outputCtx.getImageData(8, 8, 16, 16).data;
+    const colors = new Set();
+
+    for (let i = 0; i < pixels.length; i += 4) {
+      colors.add(`${pixels[i]},${pixels[i + 1]},${pixels[i + 2]}`);
+    }
+
+    expect(colors.size).toBeGreaterThan(8);
+  });
+
+  it('avoids full-height square grid seams', () => {
+    const width = 64;
+    const height = 64;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#dd6600';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      cellSize: 16,
+      colorLevels: 8,
+      leadStrength: 0.8,
+    });
+
+    const pixels = outputCtx.getImageData(16, 0, 1, height).data;
+    let darkPixels = 0;
+
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (luminance(pixels[i], pixels[i + 1], pixels[i + 2]) < 80) {
+        darkPixels += 1;
+      }
+    }
+
+    expect(darkPixels).toBeLessThan(height * 0.9);
+  });
+
+  it('draws crisp lead between shards even when source colors are similar', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#d88a22';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 0.8,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
+  });
+
+  it('regenerates shard geometry when the frame colors change', () => {
+    const width = 80;
+    const height = 80;
+    const firstFrame = createContexts(width, height);
+    const secondFrame = createContexts(width, height);
+    const options = {
+      detail: 0.85,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    };
+
+    firstFrame.sourceCtx.fillStyle = '#d86e16';
+    firstFrame.sourceCtx.fillRect(0, 0, width, height);
+    secondFrame.sourceCtx.fillStyle = '#165ed8';
+    secondFrame.sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(firstFrame.sourceCtx, firstFrame.outputCtx, width, height, options);
+    renderStainedGlass(secondFrame.sourceCtx, secondFrame.outputCtx, width, height, options);
+
+    expect(countDarkMaskDifferences(firstFrame.outputCtx, secondFrame.outputCtx, width, height)).toBeGreaterThan(250);
+  });
+
+  it('places stronger lead where the source has stark color differences', () => {
+    const width = 80;
+    const height = 40;
+    const highContrast = createContexts(width, height);
+    const lowContrast = createContexts(width, height);
+    const options = {
+      detail: 0.85,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    };
+
+    highContrast.sourceCtx.fillStyle = '#f2a000';
+    highContrast.sourceCtx.fillRect(0, 0, width / 2, height);
+    highContrast.sourceCtx.fillStyle = '#1038d8';
+    highContrast.sourceCtx.fillRect(width / 2, 0, width / 2, height);
+
+    lowContrast.sourceCtx.fillStyle = '#d88a22';
+    lowContrast.sourceCtx.fillRect(0, 0, width / 2, height);
+    lowContrast.sourceCtx.fillStyle = '#d89428';
+    lowContrast.sourceCtx.fillRect(width / 2, 0, width / 2, height);
+
+    renderStainedGlass(highContrast.sourceCtx, highContrast.outputCtx, width, height, options);
+    renderStainedGlass(lowContrast.sourceCtx, lowContrast.outputCtx, width, height, options);
+
+    expect(averageColumnLuminance(highContrast.outputCtx, width / 2 - 1, height)).toBeLessThan(
+      averageColumnLuminance(lowContrast.outputCtx, width / 2 - 1, height) - 25,
+    );
+  });
+
+  it('uses detail to reveal moderate source transitions', () => {
+    const width = 80;
+    const height = 40;
+    const highDetail = createContexts(width, height);
+    const lowDetail = createContexts(width, height);
+
+    [highDetail.sourceCtx, lowDetail.sourceCtx].forEach((ctx) => {
+      ctx.fillStyle = '#8a5420';
+      ctx.fillRect(0, 0, width / 2, height);
+      ctx.fillStyle = '#cf9142';
+      ctx.fillRect(width / 2, 0, width / 2, height);
+    });
+
+    renderStainedGlass(highDetail.sourceCtx, highDetail.outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+    renderStainedGlass(lowDetail.sourceCtx, lowDetail.outputCtx, width, height, {
+      detail: 0,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(averageColumnLuminance(highDetail.outputCtx, width / 2 - 1, height)).toBeLessThan(
+      averageColumnLuminance(lowDetail.outputCtx, width / 2 - 1, height) - 10,
+    );
   });
 });
