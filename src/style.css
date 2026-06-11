@@ -53,6 +53,8 @@ main {
 
 #output {
   width: 100%;
+  aspect-ratio: 9 / 16;
+  height: auto;
   display: block;
   border-radius: 0.75rem;
   background: #000;
