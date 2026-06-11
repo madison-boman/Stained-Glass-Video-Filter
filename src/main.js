@@ -57,7 +57,7 @@ function resizeCanvases(width, height) {
 }
 
 function resizeToMedia(width, height) {
-  const maxSide = 1920;
+  const maxSide = 1280;
   const scale = Math.min(1, maxSide / Math.max(width, height));
 
   resizeCanvases(Math.round(width * scale), Math.round(height * scale));
@@ -157,8 +157,8 @@ async function startCamera() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: cameraFacing },
-        width: { ideal: 1080 },
-        height: { ideal: 1920 },
+        width: { ideal: 720 },
+        height: { ideal: 1280 },
       },
       audio: false,
     });
@@ -168,7 +168,7 @@ async function startCamera() {
     demoCanvas.hidden = true;
     await video.play();
 
-    resizeToMedia(video.videoWidth || 1080, video.videoHeight || 1920);
+    resizeToMedia(video.videoWidth || 720, video.videoHeight || 1280);
     snapshotBtn.disabled = false;
     setStatus('Live camera active. Adjust sliders to change the stained glass look.');
     renderFrame();
