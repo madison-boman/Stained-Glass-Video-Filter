@@ -21,23 +21,46 @@ function colorDifference(r1, g1, b1, r2, g2, b2) {
   return (Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2)) / 3;
 }
 
-function sourceEdgeContrast(data, width, height, x, y) {
-  const left = (y * width + Math.max(x - 1, 0)) * 4;
-  const right = (y * width + Math.min(x + 1, width - 1)) * 4;
-  const top = (Math.max(y - 1, 0) * width + x) * 4;
-  const bottom = (Math.min(y + 1, height - 1) * width + x) * 4;
-
-  return Math.max(
-    colorDifference(data[left], data[left + 1], data[left + 2], data[right], data[right + 1], data[right + 2]),
-    colorDifference(data[top], data[top + 1], data[top + 2], data[bottom], data[bottom + 1], data[bottom + 2]),
-  );
-}
-
 function sourceIndexAt(width, height, x, y) {
   const sampleX = clamp(Math.round(x), 0, width - 1);
   const sampleY = clamp(Math.round(y), 0, height - 1);
 
   return (sampleY * width + sampleX) * 4;
+}
+
+function createSmoothedSourceData(data, width, height) {
+  const smoothed = new Uint8ClampedArray(data.length);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let sumR = 0;
+      let sumG = 0;
+      let sumB = 0;
+      let count = 0;
+
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        const sampleY = clamp(y + offsetY, 0, height - 1);
+
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          const sampleX = clamp(x + offsetX, 0, width - 1);
+          const index = (sampleY * width + sampleX) * 4;
+
+          sumR += data[index];
+          sumG += data[index + 1];
+          sumB += data[index + 2];
+          count += 1;
+        }
+      }
+
+      const outIndex = (y * width + x) * 4;
+      smoothed[outIndex] = Math.round(sumR / count);
+      smoothed[outIndex + 1] = Math.round(sumG / count);
+      smoothed[outIndex + 2] = Math.round(sumB / count);
+      smoothed[outIndex + 3] = 255;
+    }
+  }
+
+  return smoothed;
 }
 
 function randomUnit(col, row, salt) {
@@ -200,11 +223,12 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
   const leadStrength = options.leadStrength ?? 0.82;
 
   const source = sourceCtx.getImageData(0, 0, width, height);
+  const smoothedSource = createSmoothedSourceData(source.data, width, height);
   const output = outputCtx.createImageData(width, height);
 
   const cols = Math.ceil(width / cellSize);
   const rows = Math.ceil(height / cellSize);
-  const seeds = createSeeds(cols, rows, cellSize, width, height, source.data, detail);
+  const seeds = createSeeds(cols, rows, cellSize, width, height, smoothedSource, detail);
   const seedCount = cols * rows;
   const sumR = new Float64Array(seedCount);
   const sumG = new Float64Array(seedCount);
@@ -229,7 +253,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cols,
         rows,
         cellSize,
-        source.data,
+        smoothedSource,
         width,
         height,
         colorWeight,
@@ -239,9 +263,9 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
 
       const sourceIndex = (y * width + x) * 4;
       const seedIndex = nearest.bestIndex;
-      sumR[seedIndex] += source.data[sourceIndex];
-      sumG[seedIndex] += source.data[sourceIndex + 1];
-      sumB[seedIndex] += source.data[sourceIndex + 2];
+      sumR[seedIndex] += smoothedSource[sourceIndex];
+      sumG[seedIndex] += smoothedSource[sourceIndex + 1];
+      sumB[seedIndex] += smoothedSource[sourceIndex + 2];
       counts[seedIndex] += 1;
     }
   }
@@ -252,9 +276,9 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     const fallbackIndex = (sourceY * width + sourceX) * 4;
     const count = counts[index] || 1;
     const shaped = shapeGlassColor(
-      quantizeChannel(counts[index] ? sumR[index] / count : source.data[fallbackIndex], colorLevels),
-      quantizeChannel(counts[index] ? sumG[index] / count : source.data[fallbackIndex + 1], colorLevels),
-      quantizeChannel(counts[index] ? sumB[index] / count : source.data[fallbackIndex + 2], colorLevels),
+      quantizeChannel(counts[index] ? sumR[index] / count : smoothedSource[fallbackIndex], colorLevels),
+      quantizeChannel(counts[index] ? sumG[index] / count : smoothedSource[fallbackIndex + 1], colorLevels),
+      quantizeChannel(counts[index] ? sumB[index] / count : smoothedSource[fallbackIndex + 2], colorLevels),
     );
 
     const base = index * 3;
@@ -265,9 +289,8 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
 
   const leadWidth = 1.15 + leadStrength * 2.8;
   const leadFeather = 0.65 + leadStrength * 0.65;
-  const detailBlend = 0.05 + detail * 0.1;
+  const detailBlend = 0.02 + detail * 0.04;
   const seamThreshold = 18 + (1 - detail) * 72;
-  const edgeThreshold = 22 + (1 - detail) * 82;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -278,7 +301,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cols,
         rows,
         cellSize,
-        source.data,
+        smoothedSource,
         width,
         height,
         colorWeight,
@@ -295,9 +318,9 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       const ripple = Math.sin(x * 0.075 + y * 0.11 + seeds.variants[seedIndex] * Math.PI * 2) * 0.025;
       const facet = 1 + centerGlow * 0.16 - dx * 0.08 + dy * 0.06 + ripple;
 
-      let r = (cellColors[base] * (1 - detailBlend) + source.data[sourceIndex] * detailBlend) * facet;
-      let g = (cellColors[base + 1] * (1 - detailBlend) + source.data[sourceIndex + 1] * detailBlend) * facet;
-      let b = (cellColors[base + 2] * (1 - detailBlend) + source.data[sourceIndex + 2] * detailBlend) * facet;
+      let r = (cellColors[base] * (1 - detailBlend) + smoothedSource[sourceIndex] * detailBlend) * facet;
+      let g = (cellColors[base + 1] * (1 - detailBlend) + smoothedSource[sourceIndex + 1] * detailBlend) * facet;
+      let b = (cellColors[base + 2] * (1 - detailBlend) + smoothedSource[sourceIndex + 2] * detailBlend) * facet;
 
       const boundaryDistance = Number.isFinite(nearest.secondDistance)
         ? Math.sqrt(nearest.secondDistance) - Math.sqrt(nearest.bestDistance)
@@ -315,12 +338,10 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cellColors[secondBase + 2],
       );
       const seamDetail = clamp((seamContrast - seamThreshold) / (160 - seamThreshold), 0, 1);
-      const edgeDetail = clamp((sourceEdgeContrast(source.data, width, height, x, y) - edgeThreshold) / (180 - edgeThreshold), 0, 1);
       const leadBaseline = 0.74 + leadStrength * 0.2;
       const leadAlpha = Math.max(
         clamp(seamAlpha * (leadBaseline + seamDetail * 0.18), 0, 1),
         frameAlpha,
-        edgeDetail * leadStrength,
       );
 
       if (leadAlpha > 0) {

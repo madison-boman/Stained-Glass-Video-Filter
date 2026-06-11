@@ -9,6 +9,7 @@ const statusEl = document.getElementById('status');
 const detailInput = document.getElementById('detail-level');
 const colorLevelsInput = document.getElementById('color-levels');
 const leadStrengthInput = document.getElementById('lead-strength');
+const cameraFacingInput = document.getElementById('camera-facing');
 
 const outputCtx = output.getContext('2d', { willReadFrequently: true });
 const sourceCanvas = document.createElement('canvas');
@@ -17,6 +18,7 @@ const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
 let animationId = null;
 let usingDemo = false;
 let demoPhase = 0;
+let activeStream = null;
 
 function getOptions() {
   return {
@@ -80,15 +82,27 @@ function stopRendering() {
   }
 }
 
+function stopActiveStream() {
+  if (activeStream === null) {
+    return;
+  }
+
+  activeStream.getTracks().forEach((track) => track.stop());
+  activeStream = null;
+  video.srcObject = null;
+}
+
 async function startCamera() {
   stopRendering();
+  stopActiveStream();
   usingDemo = false;
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user' },
+      video: { facingMode: { ideal: cameraFacingInput.value } },
       audio: false,
     });
+    activeStream = stream;
     video.srcObject = stream;
     video.hidden = false;
     demoCanvas.hidden = true;
@@ -105,6 +119,7 @@ async function startCamera() {
 
 function startDemo() {
   stopRendering();
+  stopActiveStream();
   usingDemo = true;
   video.hidden = true;
   demoCanvas.hidden = true;
@@ -123,8 +138,13 @@ snapshotBtn.addEventListener('click', () => {
 });
 
 startBtn.addEventListener('click', startCamera);
+cameraFacingInput.addEventListener('change', () => {
+  if (!usingDemo && activeStream !== null) {
+    startCamera();
+  }
+});
 
-[startBtn, snapshotBtn].forEach((el) => {
+[startBtn, snapshotBtn, cameraFacingInput].forEach((el) => {
   el.addEventListener('click', () => el.blur());
 });
 

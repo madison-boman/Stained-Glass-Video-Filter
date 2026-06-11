@@ -170,6 +170,37 @@ describe('renderStainedGlass', () => {
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
   });
 
+  it('smooths isolated source noise instead of rendering it as grain', () => {
+    const width = 80;
+    const height = 80;
+    const clean = createContexts(width, height);
+    const noisy = createContexts(width, height);
+    const options = {
+      detail: 0.9,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    };
+
+    [clean.sourceCtx, noisy.sourceCtx].forEach((ctx) => {
+      ctx.fillStyle = '#d88a22';
+      ctx.fillRect(0, 0, width, height);
+    });
+
+    for (let y = 6; y < height - 6; y += 7) {
+      for (let x = 6; x < width - 6; x += 7) {
+        noisy.sourceCtx.fillStyle = (x + y) % 2 === 0 ? '#111111' : '#f6f2de';
+        noisy.sourceCtx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    renderStainedGlass(clean.sourceCtx, clean.outputCtx, width, height, options);
+    renderStainedGlass(noisy.sourceCtx, noisy.outputCtx, width, height, options);
+
+    expect(countDarkInteriorPixels(noisy.outputCtx, width, height)).toBeLessThan(
+      countDarkInteriorPixels(clean.outputCtx, width, height) + 500,
+    );
+  });
+
   it('regenerates shard geometry when the frame colors change', () => {
     const width = 80;
     const height = 80;

@@ -77,6 +77,15 @@ input[type='range'] {
   width: 100%;
 }
 
+select {
+  width: 100%;
+  border: 1px solid #394157;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  background: #10131c;
+  color: #f4f1ea;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
