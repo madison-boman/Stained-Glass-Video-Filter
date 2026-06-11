@@ -239,6 +239,26 @@ describe('renderStainedGlass', () => {
     );
   });
 
+  it('keeps dissimilar color boundaries at the maximum merge threshold', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#f2a000';
+    sourceCtx.fillRect(0, 0, width / 2, height);
+    sourceCtx.fillStyle = '#1038d8';
+    sourceCtx.fillRect(width / 2, 0, width / 2, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 40,
+    });
+
+    expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
+  });
+
   it('renders lead as solid lines instead of gray shadows', () => {
     const width = 80;
     const height = 80;
