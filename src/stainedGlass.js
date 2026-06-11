@@ -427,6 +427,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
   const leadWidth = 0.35 + leadStrength * 0.75;
   const leadFeather = 0.2 + leadStrength * 0.22;
   const detailBlend = 0.02 + detail * 0.04;
+  const mergeFlatness = clamp(mergeThreshold / 40, 0, 1);
   const seamThreshold = 18 + (1 - detail) * 72;
 
   for (let y = 0; y < height; y += 1) {
@@ -455,10 +456,13 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       let g = mergedShards.colors[base + 1];
       let b = mergedShards.colors[base + 2];
 
-      if (!isMerged) {
-        r = (r * (1 - detailBlend) + smoothedSource[sourceIndex] * detailBlend) * facet;
-        g = (g * (1 - detailBlend) + smoothedSource[sourceIndex + 1] * detailBlend) * facet;
-        b = (b * (1 - detailBlend) + smoothedSource[sourceIndex + 2] * detailBlend) * facet;
+      if (!isMerged && mergeFlatness < 1) {
+        const activeDetailBlend = detailBlend * (1 - mergeFlatness);
+        const activeFacet = 1 + (facet - 1) * (1 - mergeFlatness);
+
+        r = (r * (1 - activeDetailBlend) + smoothedSource[sourceIndex] * activeDetailBlend) * activeFacet;
+        g = (g * (1 - activeDetailBlend) + smoothedSource[sourceIndex + 1] * activeDetailBlend) * activeFacet;
+        b = (b * (1 - activeDetailBlend) + smoothedSource[sourceIndex + 2] * activeDetailBlend) * activeFacet;
       }
 
       const boundaryDistance = Number.isFinite(nearest.secondSpatialDistance)
