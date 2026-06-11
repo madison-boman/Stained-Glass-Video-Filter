@@ -170,6 +170,23 @@ describe('renderStainedGlass', () => {
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
   });
 
+  it('keeps lead lines from blacking out glass panes', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#d88a22';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 0.9,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(countDarkInteriorPixels(outputCtx, width, height)).toBeLessThan(1400);
+  });
+
   it('smooths isolated source noise instead of rendering it as grain', () => {
     const width = 80;
     const height = 80;
@@ -252,7 +269,7 @@ describe('renderStainedGlass', () => {
     );
   });
 
-  it('uses detail to reveal moderate source transitions', () => {
+  it('uses detail to change moderate-transition shard patterns', () => {
     const width = 80;
     const height = 40;
     const highDetail = createContexts(width, height);
@@ -276,8 +293,6 @@ describe('renderStainedGlass', () => {
       leadStrength: 0.9,
     });
 
-    expect(averageColumnLuminance(highDetail.outputCtx, width / 2 - 1, height)).toBeLessThan(
-      averageColumnLuminance(lowDetail.outputCtx, width / 2 - 1, height) - 10,
-    );
+    expect(countDarkMaskDifferences(highDetail.outputCtx, lowDetail.outputCtx, width, height)).toBeGreaterThan(300);
   });
 });

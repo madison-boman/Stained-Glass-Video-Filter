@@ -176,6 +176,8 @@ function writeNearestSeeds(
   let secondIndex = 0;
   let bestDistance = Infinity;
   let secondDistance = Infinity;
+  let bestSpatialDistance = Infinity;
+  let secondSpatialDistance = Infinity;
 
   for (let row = startRow; row <= endRow; row += 1) {
     for (let col = startCol; col <= endCol; col += 1) {
@@ -189,10 +191,13 @@ function writeNearestSeeds(
       if (distance < bestDistance) {
         secondIndex = bestIndex;
         secondDistance = bestDistance;
+        secondSpatialDistance = bestSpatialDistance;
         bestDistance = distance;
+        bestSpatialDistance = spatialDistance;
         bestIndex = index;
       } else if (distance < secondDistance) {
         secondDistance = distance;
+        secondSpatialDistance = spatialDistance;
         secondIndex = index;
       }
     }
@@ -202,6 +207,8 @@ function writeNearestSeeds(
   result.secondIndex = secondIndex;
   result.bestDistance = bestDistance;
   result.secondDistance = secondDistance;
+  result.bestSpatialDistance = bestSpatialDistance;
+  result.secondSpatialDistance = secondSpatialDistance;
 }
 
 function shapeGlassColor(r, g, b) {
@@ -240,6 +247,8 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     secondIndex: 0,
     bestDistance: 0,
     secondDistance: Infinity,
+    bestSpatialDistance: 0,
+    secondSpatialDistance: Infinity,
   };
   const colorWeight = 0.9 + detail * 2.15;
   const warpStrength = cellSize * (0.45 + detail * 1.05);
@@ -287,8 +296,8 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     cellColors[base + 2] = shaped[2];
   }
 
-  const leadWidth = 1.15 + leadStrength * 2.8;
-  const leadFeather = 0.65 + leadStrength * 0.65;
+  const leadWidth = 0.35 + leadStrength * 0.75;
+  const leadFeather = 0.25 + leadStrength * 0.3;
   const detailBlend = 0.02 + detail * 0.04;
   const seamThreshold = 18 + (1 - detail) * 72;
 
@@ -314,7 +323,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       const sourceIndex = (y * width + x) * 4;
       const dx = (x - seeds.xs[seedIndex]) / cellSize;
       const dy = (y - seeds.ys[seedIndex]) / cellSize;
-      const centerGlow = 1 - clamp(Math.sqrt(nearest.bestDistance) / (cellSize * 0.85), 0, 1);
+      const centerGlow = 1 - clamp(Math.sqrt(nearest.bestSpatialDistance) / (cellSize * 0.85), 0, 1);
       const ripple = Math.sin(x * 0.075 + y * 0.11 + seeds.variants[seedIndex] * Math.PI * 2) * 0.025;
       const facet = 1 + centerGlow * 0.16 - dx * 0.08 + dy * 0.06 + ripple;
 
@@ -322,8 +331,8 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       let g = (cellColors[base + 1] * (1 - detailBlend) + smoothedSource[sourceIndex + 1] * detailBlend) * facet;
       let b = (cellColors[base + 2] * (1 - detailBlend) + smoothedSource[sourceIndex + 2] * detailBlend) * facet;
 
-      const boundaryDistance = Number.isFinite(nearest.secondDistance)
-        ? Math.sqrt(nearest.secondDistance) - Math.sqrt(nearest.bestDistance)
+      const boundaryDistance = Number.isFinite(nearest.secondSpatialDistance)
+        ? Math.sqrt(nearest.secondSpatialDistance) - Math.sqrt(nearest.bestSpatialDistance)
         : Infinity;
       const edgeDistance = Math.min(x, y, width - 1 - x, height - 1 - y);
       const seamAlpha = 1 - clamp((boundaryDistance - leadWidth) / leadFeather, 0, 1);
@@ -338,7 +347,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cellColors[secondBase + 2],
       );
       const seamDetail = clamp((seamContrast - seamThreshold) / (160 - seamThreshold), 0, 1);
-      const leadBaseline = 0.74 + leadStrength * 0.2;
+      const leadBaseline = 0.5 + leadStrength * 0.2;
       const leadAlpha = Math.max(
         clamp(seamAlpha * (leadBaseline + seamDetail * 0.18), 0, 1),
         frameAlpha,
