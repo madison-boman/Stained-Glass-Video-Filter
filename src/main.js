@@ -175,7 +175,7 @@ snapshotBtn.addEventListener('click', async () => {
         title: 'Digital Stained Glass',
         text: 'Save or share your stained glass snapshot.',
       });
-      setStatus('Snapshot ready. Choose Save Image in the share sheet to add it to Photos.');
+      setStatus('Snapshot shared. Choose Save Image in the share sheet to add it to Photos.');
       return;
     }
   } catch (error) {
@@ -186,7 +186,7 @@ snapshotBtn.addEventListener('click', async () => {
   }
 
   downloadSnapshot(blob, filename);
-  setStatus('Snapshot downloaded. On mobile, use Share to save directly to Photos.');
+  setStatus('Snapshot saved as a download. On mobile, tap Share, then Save Image to Photos.');
 });
 
 startBtn.addEventListener('click', startCamera);
