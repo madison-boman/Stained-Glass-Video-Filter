@@ -213,10 +213,23 @@ function writeNearestSeeds(
 
 function shapeGlassColor(r, g, b) {
   const brightness = luminance(r, g, b);
-  return [
+  const shaped = [
     clamp(Math.round((brightness + (r - brightness) * 1.22 - 128) * 1.08 + 136), 0, 255),
     clamp(Math.round((brightness + (g - brightness) * 1.22 - 128) * 1.08 + 136), 0, 255),
     clamp(Math.round((brightness + (b - brightness) * 1.22 - 128) * 1.08 + 136), 0, 255),
+  ];
+  const shapedBrightness = luminance(shaped[0], shaped[1], shaped[2]);
+
+  if (shapedBrightness >= 58) {
+    return shaped;
+  }
+
+  const lift = 58 - shapedBrightness;
+
+  return [
+    clamp(Math.round(shaped[0] + lift * 0.95 + 4), 0, 255),
+    clamp(Math.round(shaped[1] + lift * 0.95 + 6), 0, 255),
+    clamp(Math.round(shaped[2] + lift * 1.05 + 10), 0, 255),
   ];
 }
 

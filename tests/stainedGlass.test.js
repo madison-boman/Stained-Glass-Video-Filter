@@ -62,6 +62,22 @@ describe('renderStainedGlass', () => {
     return darkPixels;
   }
 
+  function averageInteriorLuminance(outputCtx, width, height) {
+    const pixels = outputCtx.getImageData(0, 0, width, height).data;
+    let total = 0;
+    let count = 0;
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+        total += luminance(pixels[index], pixels[index + 1], pixels[index + 2]);
+        count += 1;
+      }
+    }
+
+    return total / count;
+  }
+
   function countDarkMaskDifferences(firstCtx, secondCtx, width, height, threshold = 70) {
     const first = firstCtx.getImageData(0, 0, width, height).data;
     const second = secondCtx.getImageData(0, 0, width, height).data;
@@ -185,6 +201,23 @@ describe('renderStainedGlass', () => {
     });
 
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeLessThan(1400);
+  });
+
+  it('renders dark source areas as glass instead of black blobs', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#121212';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 0.8,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(averageInteriorLuminance(outputCtx, width, height)).toBeGreaterThan(38);
   });
 
   it('smooths isolated source noise instead of rendering it as grain', () => {
