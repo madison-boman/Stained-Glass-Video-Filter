@@ -350,4 +350,32 @@ describe('renderStainedGlass', () => {
 
     expect(countDarkMaskDifferences(highDetail.outputCtx, lowDetail.outputCtx, width, height)).toBeGreaterThan(300);
   });
+
+  it('allows extra detail above the standard maximum', () => {
+    const width = 80;
+    const height = 80;
+    const standardDetail = createContexts(width, height);
+    const extraDetail = createContexts(width, height);
+
+    [standardDetail.sourceCtx, extraDetail.sourceCtx].forEach((ctx) => {
+      ctx.fillStyle = '#d88a22';
+      ctx.fillRect(0, 0, width, height);
+    });
+
+    renderStainedGlass(standardDetail.sourceCtx, standardDetail.outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+    renderStainedGlass(extraDetail.sourceCtx, extraDetail.outputCtx, width, height, {
+      detail: 1.6,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(countDarkInteriorPixels(extraDetail.outputCtx, width, height)).toBeGreaterThan(
+      countDarkInteriorPixels(standardDetail.outputCtx, width, height) + 100,
+    );
+    expect(countDarkInteriorPixels(extraDetail.outputCtx, width, height)).toBeLessThan(1400);
+  });
 });
