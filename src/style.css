@@ -1,0 +1,106 @@
+:root {
+  color-scheme: dark;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #0f1118;
+  color: #f4f1ea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+header,
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+}
+
+header p {
+  margin: 0;
+  color: #c8c2b8;
+}
+
+main {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+  main {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}
+
+.stage {
+  background: linear-gradient(145deg, #1a1f2d, #10131c);
+  border: 1px solid #2d3345;
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+#output {
+  width: 100%;
+  display: block;
+  border-radius: 0.75rem;
+  background: #000;
+}
+
+.controls {
+  display: grid;
+  gap: 1rem;
+  background: #171b27;
+  border: 1px solid #2d3345;
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+input[type='range'] {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #f0b429;
+  color: #1a1200;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  margin: 0;
+  color: #a8b0c2;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
