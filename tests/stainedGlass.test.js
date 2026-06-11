@@ -208,6 +208,37 @@ describe('renderStainedGlass', () => {
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeLessThan(1400);
   });
 
+  it('merges similar neighboring shards when the threshold is raised', () => {
+    const width = 80;
+    const height = 80;
+    const separated = createContexts(width, height);
+    const merged = createContexts(width, height);
+
+    [separated.sourceCtx, merged.sourceCtx].forEach((ctx) => {
+      ctx.fillStyle = '#d88a22';
+      ctx.fillRect(0, 0, width / 2, height);
+      ctx.fillStyle = '#d89428';
+      ctx.fillRect(width / 2, 0, width / 2, height);
+    });
+
+    renderStainedGlass(separated.sourceCtx, separated.outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 0,
+    });
+    renderStainedGlass(merged.sourceCtx, merged.outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 24,
+    });
+
+    expect(countDarkInteriorPixels(merged.outputCtx, width, height)).toBeLessThan(
+      countDarkInteriorPixels(separated.outputCtx, width, height) - 100,
+    );
+  });
+
   it('renders lead as solid lines instead of gray shadows', () => {
     const width = 80;
     const height = 80;

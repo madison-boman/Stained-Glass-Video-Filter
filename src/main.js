@@ -8,6 +8,7 @@ const snapshotBtn = document.getElementById('snapshot-btn');
 const statusEl = document.getElementById('status');
 const detailInput = document.getElementById('detail-level');
 const colorLevelsInput = document.getElementById('color-levels');
+const mergeThresholdInput = document.getElementById('merge-threshold');
 const leadStrengthInput = document.getElementById('lead-strength');
 const cameraFacingBtns = Array.from(document.querySelectorAll('.camera-facing'));
 
@@ -25,6 +26,7 @@ function getOptions() {
   return {
     detail: Number(detailInput.value) / 100,
     colorLevels: Number(colorLevelsInput.value),
+    mergeThreshold: Number(mergeThresholdInput.value),
     leadStrength: Number(leadStrengthInput.value) / 100,
   };
 }
