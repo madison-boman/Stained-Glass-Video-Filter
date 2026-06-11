@@ -225,6 +225,7 @@ function createMergeState(cellColors, counts) {
   const sumR = new Float64Array(groupCount);
   const sumG = new Float64Array(groupCount);
   const sumB = new Float64Array(groupCount);
+  const members = new Uint32Array(groupCount);
 
   for (let index = 0; index < groupCount; index += 1) {
     const base = index * 3;
@@ -235,9 +236,10 @@ function createMergeState(cellColors, counts) {
     sumR[index] = cellColors[base] * weight;
     sumG[index] = cellColors[base + 1] * weight;
     sumB[index] = cellColors[base + 2] * weight;
+    members[index] = 1;
   }
 
-  return { parents, weights, sumR, sumG, sumB };
+  return { parents, weights, sumR, sumG, sumB, members };
 }
 
 function findGroup(parents, index) {
@@ -279,6 +281,7 @@ function mergeGroups(state, firstRoot, secondRoot) {
   state.sumR[target] += state.sumR[source];
   state.sumG[target] += state.sumG[source];
   state.sumB[target] += state.sumB[source];
+  state.members[target] += state.members[source];
 }
 
 function buildMergedShards(cellColors, counts, cols, rows, mergeThreshold) {
@@ -333,6 +336,7 @@ function buildMergedShards(cellColors, counts, cols, rows, mergeThreshold) {
 
   const roots = new Uint32Array(counts.length);
   const colors = new Uint8ClampedArray(cellColors.length);
+  const merged = new Uint8Array(counts.length);
 
   for (let index = 0; index < counts.length; index += 1) {
     const root = findGroup(state.parents, index);
@@ -342,9 +346,10 @@ function buildMergedShards(cellColors, counts, cols, rows, mergeThreshold) {
     colors[base] = Math.round(state.sumR[root] / state.weights[root]);
     colors[base + 1] = Math.round(state.sumG[root] / state.weights[root]);
     colors[base + 2] = Math.round(state.sumB[root] / state.weights[root]);
+    merged[index] = state.members[root] > 1 ? 1 : 0;
   }
 
-  return { roots, colors };
+  return { roots, colors, merged };
 }
 
 /**
@@ -444,10 +449,17 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       const centerGlow = 1 - clamp(Math.sqrt(nearest.bestSpatialDistance) / (cellSize * 0.85), 0, 1);
       const ripple = Math.sin(x * 0.075 + y * 0.11 + seeds.variants[seedIndex] * Math.PI * 2) * 0.025;
       const facet = 1 + centerGlow * 0.16 - dx * 0.08 + dy * 0.06 + ripple;
+      const isMerged = mergedShards.merged[seedIndex] === 1;
 
-      let r = (mergedShards.colors[base] * (1 - detailBlend) + smoothedSource[sourceIndex] * detailBlend) * facet;
-      let g = (mergedShards.colors[base + 1] * (1 - detailBlend) + smoothedSource[sourceIndex + 1] * detailBlend) * facet;
-      let b = (mergedShards.colors[base + 2] * (1 - detailBlend) + smoothedSource[sourceIndex + 2] * detailBlend) * facet;
+      let r = mergedShards.colors[base];
+      let g = mergedShards.colors[base + 1];
+      let b = mergedShards.colors[base + 2];
+
+      if (!isMerged) {
+        r = (r * (1 - detailBlend) + smoothedSource[sourceIndex] * detailBlend) * facet;
+        g = (g * (1 - detailBlend) + smoothedSource[sourceIndex + 1] * detailBlend) * facet;
+        b = (b * (1 - detailBlend) + smoothedSource[sourceIndex + 2] * detailBlend) * facet;
+      }
 
       const boundaryDistance = Number.isFinite(nearest.secondSpatialDistance)
         ? Math.sqrt(nearest.secondSpatialDistance) - Math.sqrt(nearest.bestSpatialDistance)
