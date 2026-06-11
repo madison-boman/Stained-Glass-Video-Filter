@@ -83,6 +83,21 @@ input[type='range'] {
   width: 100%;
 }
 
+.file-picker {
+  border: 1px dashed #596277;
+  border-radius: 0.8rem;
+  padding: 0.75rem;
+  background: #10131c;
+  color: #f4f1ea;
+  cursor: pointer;
+}
+
+.file-picker input {
+  width: 100%;
+  margin-top: 0.4rem;
+  color: #c8c2b8;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
