@@ -44,6 +44,8 @@ main {
 }
 
 .stage {
+  display: flex;
+  justify-content: center;
   background: linear-gradient(145deg, #1a1f2d, #10131c);
   border: 1px solid #2d3345;
   border-radius: 1rem;
@@ -53,11 +55,19 @@ main {
 
 #output {
   width: 100%;
+  max-width: 100%;
   aspect-ratio: 9 / 16;
   height: auto;
   display: block;
   border-radius: 0.75rem;
   background: #000;
+}
+
+@media (min-width: 900px) {
+  #output {
+    width: auto;
+    max-height: calc(100vh - 5rem);
+  }
 }
 
 .controls {
