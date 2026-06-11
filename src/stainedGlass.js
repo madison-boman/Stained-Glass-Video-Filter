@@ -30,7 +30,7 @@ function sourceIndexAt(width, height, x, y) {
 
 function createSmoothedSourceData(data, width, height) {
   const smoothed = new Uint8ClampedArray(data.length);
-  const radius = 4;
+  const radius = 5;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -77,15 +77,15 @@ function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
   const gs = new Uint8ClampedArray(count);
   const bs = new Uint8ClampedArray(count);
   const variants = new Float32Array(count);
-  const colorDrift = cellSize * (0.5 + detail * 0.72);
+  const colorDrift = cellSize * (0.25 + detail * 0.45);
 
   for (let row = 0; row < rows; row += 1) {
     const rowDrift = (randomUnit(0, row, 4) - 0.5) * cellSize * 0.55;
 
     for (let col = 0; col < cols; col += 1) {
       const index = row * cols + col;
-      const jitterX = (randomUnit(col, row, 1) - 0.5) * cellSize * 0.95;
-      const jitterY = (randomUnit(col, row, 2) - 0.5) * cellSize * 0.95;
+      const jitterX = (randomUnit(col, row, 1) - 0.5) * cellSize * 0.55;
+      const jitterY = (randomUnit(col, row, 2) - 0.5) * cellSize * 0.55;
       const variant = randomUnit(col, row, 3);
       const baseX = (col + 0.5) * cellSize + rowDrift + jitterX;
       const baseY = (row + 0.5) * cellSize + jitterY;
@@ -112,16 +112,16 @@ function createSeeds(cols, rows, cellSize, width, height, sourceData, detail) {
       xs[index] = clamp(
         baseX +
           Math.sin(colorPhase) * colorDrift +
-          Math.sin(chromaPhase) * cellSize * detail * 0.28 +
-          gradientX * detail * 0.09,
+          Math.sin(chromaPhase) * cellSize * detail * 0.12 +
+          gradientX * detail * 0.04,
         0,
         width - 1,
       );
       ys[index] = clamp(
         baseY +
           Math.cos(colorPhase) * colorDrift +
-          Math.cos(chromaPhase) * cellSize * detail * 0.28 +
-          gradientY * detail * 0.09,
+          Math.cos(chromaPhase) * cellSize * detail * 0.12 +
+          gradientY * detail * 0.04,
         0,
         height - 1,
       );
@@ -142,30 +142,15 @@ function writeNearestSeeds(
   cols,
   rows,
   cellSize,
-  sourceData,
-  width,
-  height,
-  colorWeight,
-  warpStrength,
   result,
 ) {
-  const sourceIndex = (y * width + x) * 4;
-  const r = sourceData[sourceIndex];
-  const g = sourceData[sourceIndex + 1];
-  const b = sourceData[sourceIndex + 2];
-  const brightness = luminance(r, g, b);
-  const sourcePhase = r * 0.018 + g * 0.029 + b * 0.037 + brightness * 0.012;
   const warpedX =
     x +
-    Math.sin(y * 0.055) * cellSize * 0.42 +
-    Math.sin(y * 0.021 + 1.7) * cellSize * 0.28 +
-    Math.sin(sourcePhase) * warpStrength +
-    Math.sin((r - g) * 0.018 + y * 0.018) * warpStrength * 0.22;
+    Math.sin(y * 0.043) * cellSize * 0.22 +
+    Math.sin(y * 0.017 + 1.7) * cellSize * 0.16;
   const warpedY =
     y +
-    Math.sin(x * 0.049 + 0.8) * cellSize * 0.34 +
-    Math.cos(sourcePhase) * warpStrength +
-    Math.cos((b - g) * 0.018 + x * 0.018) * warpStrength * 0.22;
+    Math.sin(x * 0.039 + 0.8) * cellSize * 0.18;
   const gridCol = clamp(Math.floor(warpedX / cellSize), 0, cols - 1);
   const gridRow = clamp(Math.floor(warpedY / cellSize), 0, rows - 1);
   const startCol = Math.max(gridCol - 3, 0);
@@ -186,8 +171,7 @@ function writeNearestSeeds(
       const dx = warpedX - seeds.xs[index];
       const dy = warpedY - seeds.ys[index];
       const spatialDistance = dx * dx + dy * dy;
-      const colorCost = colorDifference(r, g, b, seeds.rs[index], seeds.gs[index], seeds.bs[index]);
-      const distance = spatialDistance + colorCost * cellSize * colorWeight;
+      const distance = spatialDistance;
 
       if (distance < bestDistance) {
         secondIndex = bestIndex;
@@ -239,7 +223,7 @@ function shapeGlassColor(r, g, b) {
  */
 export function renderStainedGlass(sourceCtx, outputCtx, width, height, options = {}) {
   const detail = clamp(options.detail ?? 0.65, 0, 1);
-  const cellSize = options.cellSize ?? Math.round(52 - detail * 38);
+  const cellSize = options.cellSize ?? Math.round(78 - detail * 48);
   const colorLevels = options.colorLevels ?? 12;
   const leadStrength = options.leadStrength ?? 0.82;
 
@@ -264,9 +248,6 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     bestSpatialDistance: 0,
     secondSpatialDistance: Infinity,
   };
-  const colorWeight = 0.9 + detail * 2.15;
-  const warpStrength = cellSize * (0.45 + detail * 1.05);
-
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       writeNearestSeeds(
@@ -276,11 +257,6 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cols,
         rows,
         cellSize,
-        smoothedSource,
-        width,
-        height,
-        colorWeight,
-        warpStrength,
         nearest,
       );
 
@@ -324,11 +300,6 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cols,
         rows,
         cellSize,
-        smoothedSource,
-        width,
-        height,
-        colorWeight,
-        warpStrength,
         nearest,
       );
 
