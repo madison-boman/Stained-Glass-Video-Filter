@@ -222,9 +222,9 @@ function shapeGlassColor(r, g, b) {
  * Apply a stained-glass effect: organic pane tessellation plus dark lead seams.
  */
 export function renderStainedGlass(sourceCtx, outputCtx, width, height, options = {}) {
-  const detail = clamp(options.detail ?? 0.65, 0, 1.6);
+  const detail = clamp(options.detail ?? 0.65, 0, 2.2);
   const extraDetail = Math.max(detail - 1, 0);
-  const cellSize = options.cellSize ?? Math.round(78 - Math.min(detail, 1) * 48 - extraDetail * 18);
+  const cellSize = options.cellSize ?? Math.max(Math.round(78 - Math.min(detail, 1) * 48 - extraDetail * 12), 14);
   const colorLevels = options.colorLevels ?? 12;
   const leadStrength = options.leadStrength ?? 0.82;
 

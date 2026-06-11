@@ -22,7 +22,7 @@
       <aside class="controls">
         <label>
           Detail
-          <input id="detail-level" type="range" min="0" max="160" value="65" />
+          <input id="detail-level" type="range" min="0" max="220" value="65" />
         </label>
         <label>
           Color levels
@@ -32,13 +32,13 @@
           Lead line strength
           <input id="lead-strength" type="range" min="0" max="100" value="82" />
         </label>
-        <label>
+        <div class="control-group">
           Camera
-          <select id="camera-facing">
-            <option value="user">Front camera</option>
-            <option value="environment">Back camera</option>
-          </select>
-        </label>
+          <div class="segmented-control" role="group" aria-label="Camera selection">
+            <button class="camera-facing active" type="button" data-facing="user" aria-pressed="true">Front</button>
+            <button class="camera-facing" type="button" data-facing="environment" aria-pressed="false">Back</button>
+          </div>
+        </div>
         <div class="actions">
           <button id="start-btn" type="button">Start camera</button>
           <button id="snapshot-btn" type="button" disabled>Save snapshot</button>

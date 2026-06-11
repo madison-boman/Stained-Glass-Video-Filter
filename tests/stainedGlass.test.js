@@ -368,7 +368,7 @@ describe('renderStainedGlass', () => {
       leadStrength: 0.9,
     });
     renderStainedGlass(extraDetail.sourceCtx, extraDetail.outputCtx, width, height, {
-      detail: 1.6,
+      detail: 2.2,
       colorLevels: 12,
       leadStrength: 0.9,
     });
