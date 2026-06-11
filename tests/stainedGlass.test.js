@@ -103,6 +103,23 @@ describe('renderStainedGlass', () => {
     return differences;
   }
 
+  function countInteriorGlassColors(outputCtx, width, height, threshold = 70) {
+    const pixels = outputCtx.getImageData(0, 0, width, height).data;
+    const colors = new Set();
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+
+        if (luminance(pixels[index], pixels[index + 1], pixels[index + 2]) >= threshold) {
+          colors.add(`${pixels[index]},${pixels[index + 1]},${pixels[index + 2]}`);
+        }
+      }
+    }
+
+    return colors.size;
+  }
+
   it('produces opaque output pixels', () => {
     const width = 36;
     const height = 36;
@@ -206,6 +223,95 @@ describe('renderStainedGlass', () => {
     });
 
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeLessThan(1400);
+  });
+
+  it('merges similar neighboring shards when the threshold is raised', () => {
+    const width = 80;
+    const height = 80;
+    const separated = createContexts(width, height);
+    const merged = createContexts(width, height);
+
+    [separated.sourceCtx, merged.sourceCtx].forEach((ctx) => {
+      ctx.fillStyle = '#d88a22';
+      ctx.fillRect(0, 0, width / 2, height);
+      ctx.fillStyle = '#d89428';
+      ctx.fillRect(width / 2, 0, width / 2, height);
+    });
+
+    renderStainedGlass(separated.sourceCtx, separated.outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 0,
+    });
+    renderStainedGlass(merged.sourceCtx, merged.outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 24,
+    });
+
+    expect(countDarkInteriorPixels(merged.outputCtx, width, height)).toBeLessThan(
+      countDarkInteriorPixels(separated.outputCtx, width, height) - 100,
+    );
+  });
+
+  it('renders merged shard groups as one flat averaged color', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#d88a22';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 40,
+    });
+
+    expect(countInteriorGlassColors(outputCtx, width, height)).toBeLessThanOrEqual(2);
+  });
+
+  it('keeps dissimilar color boundaries at the maximum merge threshold', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#f2a000';
+    sourceCtx.fillRect(0, 0, width / 2, height);
+    sourceCtx.fillStyle = '#1038d8';
+    sourceCtx.fillRect(width / 2, 0, width / 2, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 40,
+    });
+
+    expect(countDarkInteriorPixels(outputCtx, width, height)).toBeGreaterThan(300);
+  });
+
+  it('flattens visible shard fills at the maximum merge threshold', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#f2a000';
+    sourceCtx.fillRect(0, 0, width / 2, height);
+    sourceCtx.fillStyle = '#1038d8';
+    sourceCtx.fillRect(width / 2, 0, width / 2, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 1,
+      colorLevels: 12,
+      leadStrength: 0.9,
+      mergeThreshold: 40,
+    });
+
+    expect(countInteriorGlassColors(outputCtx, width, height)).toBeLessThanOrEqual(2);
   });
 
   it('renders lead as solid lines instead of gray shadows', () => {
@@ -368,7 +474,7 @@ describe('renderStainedGlass', () => {
       leadStrength: 0.9,
     });
     renderStainedGlass(extraDetail.sourceCtx, extraDetail.outputCtx, width, height, {
-      detail: 1.6,
+      detail: 2.2,
       colorLevels: 12,
       leadStrength: 0.9,
     });
