@@ -8,8 +8,9 @@ const snapshotBtn = document.getElementById('snapshot-btn');
 const statusEl = document.getElementById('status');
 const detailInput = document.getElementById('detail-level');
 const colorLevelsInput = document.getElementById('color-levels');
+const mergeThresholdInput = document.getElementById('merge-threshold');
 const leadStrengthInput = document.getElementById('lead-strength');
-const cameraFacingInput = document.getElementById('camera-facing');
+const cameraFacingBtns = Array.from(document.querySelectorAll('.camera-facing'));
 
 const outputCtx = output.getContext('2d', { willReadFrequently: true });
 const sourceCanvas = document.createElement('canvas');
@@ -19,17 +20,29 @@ let animationId = null;
 let usingDemo = false;
 let demoPhase = 0;
 let activeStream = null;
+let cameraFacing = 'user';
 
 function getOptions() {
   return {
     detail: Number(detailInput.value) / 100,
     colorLevels: Number(colorLevelsInput.value),
+    mergeThreshold: Number(mergeThresholdInput.value),
     leadStrength: Number(leadStrengthInput.value) / 100,
   };
 }
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function setCameraFacing(facing) {
+  cameraFacing = facing;
+
+  cameraFacingBtns.forEach((button) => {
+    const isActive = button.dataset.facing === facing;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
 }
 
 function resizeCanvases(width, height) {
@@ -99,7 +112,7 @@ async function startCamera() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: cameraFacingInput.value } },
+      video: { facingMode: { ideal: cameraFacing } },
       audio: false,
     });
     activeStream = stream;
@@ -130,21 +143,66 @@ function startDemo() {
   renderFrame();
 }
 
-snapshotBtn.addEventListener('click', () => {
+function canvasToBlob(canvas) {
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, 'image/png');
+  });
+}
+
+function downloadSnapshot(blob, filename) {
   const link = document.createElement('a');
-  link.download = `stained-glass-${Date.now()}.png`;
-  link.href = output.toDataURL('image/png');
+  const url = URL.createObjectURL(blob);
+
+  link.download = filename;
+  link.href = url;
   link.click();
+  URL.revokeObjectURL(url);
+}
+
+snapshotBtn.addEventListener('click', async () => {
+  const filename = `stained-glass-${Date.now()}.png`;
+  const blob = await canvasToBlob(output);
+
+  if (blob === null) {
+    setStatus('Snapshot failed. Please try again.');
+    return;
+  }
+
+  const file = new File([blob], filename, { type: 'image/png' });
+
+  try {
+    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+      await navigator.share({
+        files: [file],
+        title: 'Digital Stained Glass',
+        text: 'Save or share your stained glass snapshot.',
+      });
+      setStatus('Snapshot shared. Choose Save Image in the share sheet to add it to Photos.');
+      return;
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      setStatus('Snapshot share cancelled.');
+      return;
+    }
+  }
+
+  downloadSnapshot(blob, filename);
+  setStatus('Snapshot saved as a download. On mobile, tap Share, then Save Image to Photos.');
 });
 
 startBtn.addEventListener('click', startCamera);
-cameraFacingInput.addEventListener('change', () => {
-  if (!usingDemo && activeStream !== null) {
-    startCamera();
-  }
+cameraFacingBtns.forEach((button) => {
+  button.addEventListener('click', () => {
+    setCameraFacing(button.dataset.facing);
+
+    if (!usingDemo && activeStream !== null) {
+      startCamera();
+    }
+  });
 });
 
-[startBtn, snapshotBtn, cameraFacingInput].forEach((el) => {
+[startBtn, snapshotBtn, ...cameraFacingBtns].forEach((el) => {
   el.addEventListener('click', () => el.blur());
 });
 

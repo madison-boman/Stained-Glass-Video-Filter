@@ -73,17 +73,35 @@ label {
   font-weight: 600;
 }
 
+.control-group {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
 input[type='range'] {
   width: 100%;
 }
 
-select {
-  width: 100%;
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.25rem;
   border: 1px solid #394157;
-  border-radius: 0.6rem;
-  padding: 0.55rem 0.65rem;
+  border-radius: 999px;
   background: #10131c;
+}
+
+.segmented-control button {
+  background: transparent;
   color: #f4f1ea;
+  padding: 0.5rem 0.75rem;
+}
+
+.segmented-control button.active {
+  background: #f0b429;
+  color: #1a1200;
 }
 
 .actions {

@@ -218,15 +218,150 @@ function shapeGlassColor(r, g, b) {
   ];
 }
 
+function createMergeState(cellColors, counts) {
+  const groupCount = counts.length;
+  const parents = new Uint32Array(groupCount);
+  const weights = new Float64Array(groupCount);
+  const sumR = new Float64Array(groupCount);
+  const sumG = new Float64Array(groupCount);
+  const sumB = new Float64Array(groupCount);
+  const members = new Uint32Array(groupCount);
+
+  for (let index = 0; index < groupCount; index += 1) {
+    const base = index * 3;
+    const weight = counts[index] || 1;
+
+    parents[index] = index;
+    weights[index] = weight;
+    sumR[index] = cellColors[base] * weight;
+    sumG[index] = cellColors[base + 1] * weight;
+    sumB[index] = cellColors[base + 2] * weight;
+    members[index] = 1;
+  }
+
+  return { parents, weights, sumR, sumG, sumB, members };
+}
+
+function findGroup(parents, index) {
+  let root = index;
+
+  while (parents[root] !== root) {
+    root = parents[root];
+  }
+
+  let current = index;
+  while (parents[current] !== current) {
+    const next = parents[current];
+    parents[current] = root;
+    current = next;
+  }
+
+  return root;
+}
+
+function averageGroupColor(state, root) {
+  return [
+    state.sumR[root] / state.weights[root],
+    state.sumG[root] / state.weights[root],
+    state.sumB[root] / state.weights[root],
+  ];
+}
+
+function mergeGroups(state, firstRoot, secondRoot) {
+  let target = firstRoot;
+  let source = secondRoot;
+
+  if (state.weights[source] > state.weights[target]) {
+    target = secondRoot;
+    source = firstRoot;
+  }
+
+  state.parents[source] = target;
+  state.weights[target] += state.weights[source];
+  state.sumR[target] += state.sumR[source];
+  state.sumG[target] += state.sumG[source];
+  state.sumB[target] += state.sumB[source];
+  state.members[target] += state.members[source];
+}
+
+function buildMergedShards(cellColors, counts, cols, rows, mergeThreshold) {
+  const state = createMergeState(cellColors, counts);
+
+  if (mergeThreshold > 0) {
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          const index = row * cols + col;
+          const neighbors = [
+            col + 1 < cols ? index + 1 : -1,
+            row + 1 < rows ? index + cols : -1,
+          ];
+
+          for (const neighbor of neighbors) {
+            if (neighbor === -1) {
+              continue;
+            }
+
+            const firstRoot = findGroup(state.parents, index);
+            const secondRoot = findGroup(state.parents, neighbor);
+
+            if (firstRoot === secondRoot) {
+              continue;
+            }
+
+            const firstColor = averageGroupColor(state, firstRoot);
+            const secondColor = averageGroupColor(state, secondRoot);
+            const difference = colorDifference(
+              firstColor[0],
+              firstColor[1],
+              firstColor[2],
+              secondColor[0],
+              secondColor[1],
+              secondColor[2],
+            );
+
+            if (difference <= mergeThreshold) {
+              mergeGroups(state, firstRoot, secondRoot);
+              changed = true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const roots = new Uint32Array(counts.length);
+  const colors = new Uint8ClampedArray(cellColors.length);
+  const merged = new Uint8Array(counts.length);
+
+  for (let index = 0; index < counts.length; index += 1) {
+    const root = findGroup(state.parents, index);
+    const base = index * 3;
+
+    roots[index] = root;
+    colors[base] = Math.round(state.sumR[root] / state.weights[root]);
+    colors[base + 1] = Math.round(state.sumG[root] / state.weights[root]);
+    colors[base + 2] = Math.round(state.sumB[root] / state.weights[root]);
+    merged[index] = state.members[root] > 1 ? 1 : 0;
+  }
+
+  return { roots, colors, merged };
+}
+
 /**
  * Apply a stained-glass effect: organic pane tessellation plus dark lead seams.
  */
 export function renderStainedGlass(sourceCtx, outputCtx, width, height, options = {}) {
-  const detail = clamp(options.detail ?? 0.65, 0, 1.6);
+  const detail = clamp(options.detail ?? 0.65, 0, 2.2);
   const extraDetail = Math.max(detail - 1, 0);
-  const cellSize = options.cellSize ?? Math.round(78 - Math.min(detail, 1) * 48 - extraDetail * 18);
+  const cellSize = options.cellSize ?? Math.max(Math.round(78 - Math.min(detail, 1) * 48 - extraDetail * 12), 14);
   const colorLevels = options.colorLevels ?? 12;
   const leadStrength = options.leadStrength ?? 0.82;
+  const mergeThreshold = options.mergeThreshold ?? 0;
 
   const source = sourceCtx.getImageData(0, 0, width, height);
   const smoothedSource = createSmoothedSourceData(source.data, width, height);
@@ -287,9 +422,12 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
     cellColors[base + 2] = shaped[2];
   }
 
+  const mergedShards = buildMergedShards(cellColors, counts, cols, rows, mergeThreshold);
+
   const leadWidth = 0.35 + leadStrength * 0.75;
   const leadFeather = 0.2 + leadStrength * 0.22;
   const detailBlend = 0.02 + detail * 0.04;
+  const mergeFlatness = clamp(mergeThreshold / 40, 0, 1);
   const seamThreshold = 18 + (1 - detail) * 72;
 
   for (let y = 0; y < height; y += 1) {
@@ -312,10 +450,20 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       const centerGlow = 1 - clamp(Math.sqrt(nearest.bestSpatialDistance) / (cellSize * 0.85), 0, 1);
       const ripple = Math.sin(x * 0.075 + y * 0.11 + seeds.variants[seedIndex] * Math.PI * 2) * 0.025;
       const facet = 1 + centerGlow * 0.16 - dx * 0.08 + dy * 0.06 + ripple;
+      const isMerged = mergedShards.merged[seedIndex] === 1;
 
-      let r = (cellColors[base] * (1 - detailBlend) + smoothedSource[sourceIndex] * detailBlend) * facet;
-      let g = (cellColors[base + 1] * (1 - detailBlend) + smoothedSource[sourceIndex + 1] * detailBlend) * facet;
-      let b = (cellColors[base + 2] * (1 - detailBlend) + smoothedSource[sourceIndex + 2] * detailBlend) * facet;
+      let r = mergedShards.colors[base];
+      let g = mergedShards.colors[base + 1];
+      let b = mergedShards.colors[base + 2];
+
+      if (!isMerged && mergeFlatness < 1) {
+        const activeDetailBlend = detailBlend * (1 - mergeFlatness);
+        const activeFacet = 1 + (facet - 1) * (1 - mergeFlatness);
+
+        r = (r * (1 - activeDetailBlend) + smoothedSource[sourceIndex] * activeDetailBlend) * activeFacet;
+        g = (g * (1 - activeDetailBlend) + smoothedSource[sourceIndex + 1] * activeDetailBlend) * activeFacet;
+        b = (b * (1 - activeDetailBlend) + smoothedSource[sourceIndex + 2] * activeDetailBlend) * activeFacet;
+      }
 
       const boundaryDistance = Number.isFinite(nearest.secondSpatialDistance)
         ? Math.sqrt(nearest.secondSpatialDistance) - Math.sqrt(nearest.bestSpatialDistance)
@@ -324,17 +472,18 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
       const seamAlpha = 1 - clamp((boundaryDistance - leadWidth) / leadFeather, 0, 1);
       const frameAlpha = 1 - clamp((edgeDistance - leadWidth) / leadFeather, 0, 1);
       const secondBase = nearest.secondIndex * 3;
+      const sameMergedShard = mergedShards.roots[seedIndex] === mergedShards.roots[nearest.secondIndex];
       const seamContrast = colorDifference(
-        cellColors[base],
-        cellColors[base + 1],
-        cellColors[base + 2],
-        cellColors[secondBase],
-        cellColors[secondBase + 1],
-        cellColors[secondBase + 2],
+        mergedShards.colors[base],
+        mergedShards.colors[base + 1],
+        mergedShards.colors[base + 2],
+        mergedShards.colors[secondBase],
+        mergedShards.colors[secondBase + 1],
+        mergedShards.colors[secondBase + 2],
       );
       const seamDetail = clamp((seamContrast - seamThreshold) / (160 - seamThreshold), 0, 1);
       const leadBaseline = 0.78 + leadStrength * 0.16;
-      const seamStroke = seamAlpha > 0.38 ? leadBaseline + seamDetail * 0.08 : 0;
+      const seamStroke = !sameMergedShard && seamAlpha > 0.38 ? leadBaseline + seamDetail * 0.08 : 0;
       const frameStroke = frameAlpha > 0.38 ? leadBaseline : 0;
       const leadAlpha = Math.max(
         clamp(seamStroke, 0, 0.96),
