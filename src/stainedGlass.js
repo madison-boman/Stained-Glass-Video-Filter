@@ -30,6 +30,7 @@ function sourceIndexAt(width, height, x, y) {
 
 function createSmoothedSourceData(data, width, height) {
   const smoothed = new Uint8ClampedArray(data.length);
+  const radius = 4;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -38,10 +39,10 @@ function createSmoothedSourceData(data, width, height) {
       let sumB = 0;
       let count = 0;
 
-      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+      for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
         const sampleY = clamp(y + offsetY, 0, height - 1);
 
-        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+        for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
           const sampleX = clamp(x + offsetX, 0, width - 1);
           const index = (sampleY * width + sampleX) * 4;
 
@@ -153,18 +154,18 @@ function writeNearestSeeds(
   const g = sourceData[sourceIndex + 1];
   const b = sourceData[sourceIndex + 2];
   const brightness = luminance(r, g, b);
-  const sourcePhase = r * 0.035 + g * 0.057 + b * 0.071 + brightness * 0.023;
+  const sourcePhase = r * 0.018 + g * 0.029 + b * 0.037 + brightness * 0.012;
   const warpedX =
     x +
     Math.sin(y * 0.055) * cellSize * 0.42 +
     Math.sin(y * 0.021 + 1.7) * cellSize * 0.28 +
     Math.sin(sourcePhase) * warpStrength +
-    Math.sin((r - g) * 0.05 + y * 0.018) * warpStrength * 0.45;
+    Math.sin((r - g) * 0.018 + y * 0.018) * warpStrength * 0.22;
   const warpedY =
     y +
     Math.sin(x * 0.049 + 0.8) * cellSize * 0.34 +
     Math.cos(sourcePhase) * warpStrength +
-    Math.cos((b - g) * 0.05 + x * 0.018) * warpStrength * 0.45;
+    Math.cos((b - g) * 0.018 + x * 0.018) * warpStrength * 0.22;
   const gridCol = clamp(Math.floor(warpedX / cellSize), 0, cols - 1);
   const gridRow = clamp(Math.floor(warpedY / cellSize), 0, rows - 1);
   const startCol = Math.max(gridCol - 3, 0);
@@ -310,7 +311,7 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
   }
 
   const leadWidth = 0.35 + leadStrength * 0.75;
-  const leadFeather = 0.25 + leadStrength * 0.3;
+  const leadFeather = 0.2 + leadStrength * 0.22;
   const detailBlend = 0.02 + detail * 0.04;
   const seamThreshold = 18 + (1 - detail) * 72;
 
@@ -360,10 +361,12 @@ export function renderStainedGlass(sourceCtx, outputCtx, width, height, options 
         cellColors[secondBase + 2],
       );
       const seamDetail = clamp((seamContrast - seamThreshold) / (160 - seamThreshold), 0, 1);
-      const leadBaseline = 0.5 + leadStrength * 0.2;
+      const leadBaseline = 0.78 + leadStrength * 0.16;
+      const seamStroke = seamAlpha > 0.38 ? leadBaseline + seamDetail * 0.08 : 0;
+      const frameStroke = frameAlpha > 0.38 ? leadBaseline : 0;
       const leadAlpha = Math.max(
-        clamp(seamAlpha * (leadBaseline + seamDetail * 0.18), 0, 1),
-        frameAlpha,
+        clamp(seamStroke, 0, 0.96),
+        clamp(frameStroke, 0, 0.96),
       );
 
       if (leadAlpha > 0) {

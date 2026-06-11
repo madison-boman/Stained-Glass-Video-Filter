@@ -62,6 +62,24 @@ describe('renderStainedGlass', () => {
     return darkPixels;
   }
 
+  function countShadowInteriorPixels(outputCtx, width, height) {
+    const pixels = outputCtx.getImageData(0, 0, width, height).data;
+    let shadowPixels = 0;
+
+    for (let y = 4; y < height - 4; y += 1) {
+      for (let x = 4; x < width - 4; x += 1) {
+        const index = (y * width + x) * 4;
+        const brightness = luminance(pixels[index], pixels[index + 1], pixels[index + 2]);
+
+        if (brightness >= 70 && brightness < 115) {
+          shadowPixels += 1;
+        }
+      }
+    }
+
+    return shadowPixels;
+  }
+
   function averageInteriorLuminance(outputCtx, width, height) {
     const pixels = outputCtx.getImageData(0, 0, width, height).data;
     let total = 0;
@@ -201,6 +219,23 @@ describe('renderStainedGlass', () => {
     });
 
     expect(countDarkInteriorPixels(outputCtx, width, height)).toBeLessThan(1400);
+  });
+
+  it('renders lead as solid lines instead of gray shadows', () => {
+    const width = 80;
+    const height = 80;
+    const { sourceCtx, outputCtx } = createContexts(width, height);
+
+    sourceCtx.fillStyle = '#d88a22';
+    sourceCtx.fillRect(0, 0, width, height);
+
+    renderStainedGlass(sourceCtx, outputCtx, width, height, {
+      detail: 0.9,
+      colorLevels: 12,
+      leadStrength: 0.9,
+    });
+
+    expect(countShadowInteriorPixels(outputCtx, width, height)).toBeLessThan(200);
   });
 
   it('renders dark source areas as glass instead of black blobs', () => {
