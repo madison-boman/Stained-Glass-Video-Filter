@@ -16,6 +16,8 @@ const cameraFacingBtns = Array.from(document.querySelectorAll('.camera-facing'))
 const outputCtx = output.getContext('2d', { willReadFrequently: true });
 const sourceCanvas = document.createElement('canvas');
 const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+const RENDER_WIDTH = 720;
+const RENDER_HEIGHT = 1280;
 
 let animationId = null;
 let usingDemo = false;
@@ -56,11 +58,18 @@ function resizeCanvases(width, height) {
   sourceCanvas.height = height;
 }
 
-function resizeToMedia(width, height) {
-  const maxSide = 1280;
-  const scale = Math.min(1, maxSide / Math.max(width, height));
+function resizeToPortrait() {
+  resizeCanvases(RENDER_WIDTH, RENDER_HEIGHT);
+}
 
-  resizeCanvases(Math.round(width * scale), Math.round(height * scale));
+function drawSourceCover(source, sourceWidth, sourceHeight) {
+  const scale = Math.max(sourceCanvas.width / sourceWidth, sourceCanvas.height / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  const x = (sourceCanvas.width - width) / 2;
+  const y = (sourceCanvas.height - height) / 2;
+
+  sourceCtx.drawImage(source, x, y, width, height);
 }
 
 function clearUploadedVideoUrl() {
@@ -101,9 +110,9 @@ function renderFrame() {
   if (sourceMode === 'demo') {
     drawDemoFrame();
   } else if ((sourceMode === 'camera' || sourceMode === 'video') && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-    sourceCtx.drawImage(video, 0, 0, sourceCanvas.width, sourceCanvas.height);
+    drawSourceCover(video, video.videoWidth || RENDER_WIDTH, video.videoHeight || RENDER_HEIGHT);
   } else if (sourceMode === 'image' && uploadedImage !== null) {
-    sourceCtx.drawImage(uploadedImage, 0, 0, sourceCanvas.width, sourceCanvas.height);
+    drawSourceCover(uploadedImage, uploadedImage.naturalWidth || RENDER_WIDTH, uploadedImage.naturalHeight || RENDER_HEIGHT);
   }
 
   renderStainedGlass(sourceCtx, outputCtx, sourceCanvas.width, sourceCanvas.height, getOptions());
@@ -168,7 +177,7 @@ async function startCamera() {
     demoCanvas.hidden = true;
     await video.play();
 
-    resizeToMedia(video.videoWidth || 720, video.videoHeight || 1280);
+    resizeToPortrait();
     snapshotBtn.disabled = false;
     setStatus('Live camera active. Adjust sliders to change the stained glass look.');
     renderFrame();
@@ -188,7 +197,7 @@ function startDemo() {
   video.hidden = true;
   demoCanvas.hidden = true;
 
-  resizeCanvases(640, 480);
+  resizeToPortrait();
   snapshotBtn.disabled = false;
   setStatus('Demo mode: animated scene (no camera available).');
   renderFrame();
@@ -208,7 +217,7 @@ function startImageUpload(file) {
   image.addEventListener('load', () => {
     URL.revokeObjectURL(url);
     uploadedImage = image;
-    resizeToMedia(image.naturalWidth || 640, image.naturalHeight || 480);
+    resizeToPortrait();
     snapshotBtn.disabled = false;
     setStatus('Photo loaded. Rendering stained glass output only.');
     renderFrame();
@@ -242,7 +251,7 @@ async function startVideoUpload(file) {
   try {
     await waitForVideoMetadata();
     await video.play();
-    resizeToMedia(video.videoWidth || 640, video.videoHeight || 480);
+    resizeToPortrait();
     snapshotBtn.disabled = false;
     setStatus('Video loaded. Rendering stained glass output only.');
     renderFrame();
@@ -342,7 +351,7 @@ window.addEventListener('resize', () => {
     return;
   }
   if (sourceMode === 'demo') {
-    resizeCanvases(640, 480);
+    resizeToPortrait();
   }
 });
 
